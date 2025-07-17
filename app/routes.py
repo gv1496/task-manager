@@ -31,6 +31,7 @@ task_bp = Blueprint("task", __name__)
                         "id": {"type": "integer"},
                         "title": {"type": "string"},
                         "done": {"type": "boolean"},
+                        "priority": {"type": "boolean"},
                     },
                 },
             }
@@ -40,13 +41,20 @@ task_bp = Blueprint("task", __name__)
 def create_task():
     session = SessionLocal()
     data = request.get_json()
-    task = Task(title=data["title"])
+    task = Task(title=data["title"], priority=data.get("priority, False"))
     session.add(task)
     session.commit()
     session.refresh(task)
     session.close()
 
-    return jsonify({"id": task.id, "title": task.title, "done": task.done})
+    return jsonify(
+        {
+            "id": task.id,
+            "title": task.title,
+            "done": task.done,
+            "priority": task.priority,
+        }
+    )
 
 
 @task_bp.route("/tasks", methods=["GET"])
@@ -64,6 +72,7 @@ def create_task():
                             "id": {"type": "integer"},
                             "title": {"type": "string"},
                             "done": {"type": "boolean"},
+                            "priority": {"type": "boolean"},
                         },
                     },
                 },
@@ -74,47 +83,79 @@ def create_task():
 def list_tasks():
     session = SessionLocal()
     tasks = session.query(Task).all()
-    result = [{"id": t.id, "title": t.title, "done": t.done} for t in tasks]
+    result = [
+        {"id": t.id, "title": t.title, "done": t.done, "priority": t.priority}
+        for t in tasks
+    ]
     session.close()
     return jsonify(result)
 
 
-@task_bp.route("/tasks/<int:task_id>", methods=["PUT"])
+@task_bp.route("/tasks/<int:task_id>", methods=["PATCH"])
 @swag_from(
     {
         "tags": ["Tasks"],
         "parameters": [
+            {"name": "task_id", "in": "path", "type": "integer", "required": True},
             {
-                "name": "task_id",
-                "in": "path",
-                "type": "integer",
+                "name": "body",
+                "in": "body",
                 "required": True,
-                "description": "ID of the task to update",
-            }
+                "schema": {
+                    "type": "object",
+                    "properties": {
+                        "title": {"type": "string"},
+                        "done": {"type": "boolean"},
+                        "priority": {"type": "boolean"},
+                    },
+                },
+            },
         ],
         "responses": {
             200: {
-                "description": "Task marked as done",
+                "description": "Task updated",
                 "schema": {
                     "type": "object",
-                    "properties": {"message": {"type": "string"}},
+                    "properties": {
+                        "id": {"type": "integer"},
+                        "title": {"type": "string"},
+                        "done": {"type": "boolean"},
+                        "priority": {"type": "boolean"},
+                    },
                 },
             },
             404: {"description": "Task not found"},
         },
     }
 )
-def mark_task_done(task_id):
+def update_task(task_id):
+    data = request.get_json()
     session = SessionLocal()
     task = session.get(Task, task_id)
+
     if not task:
         session.close()
         return jsonify({"error": "Task not found"}), 404
 
-    task.done = True
+    if "title" in data:
+        task.title = data["title"]
+    if "done" in data:
+        task.done = data["done"]
+    if "priority" in data:
+        task.priority = data["priority"]
+
     session.commit()
+    session.refresh(task)
     session.close()
-    return jsonify({"message": f"Task {task_id} marked as done"})
+
+    return jsonify(
+        {
+            "id": task.id,
+            "title": task.title,
+            "done": task.done,
+            "priority": task.priority,
+        }
+    )
 
 
 @task_bp.route("/tasks/<int:task_id>", methods=["DELETE"])
