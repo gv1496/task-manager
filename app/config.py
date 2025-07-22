@@ -3,4 +3,4 @@
 import os
 
 # Example: postgresql://username:password@localhost:5432/dbname
-DATABASE_URL = "postgresql://vignesh@localhost:5432/task_db"
+DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://vignesh@localhost:5432/task_db")
